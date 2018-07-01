@@ -1,48 +1,70 @@
-﻿Shader "Custom/WaterMagic" {
+﻿// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
+
+Shader "Custom/WaterMagic" {
 	Properties {
 		_Color ("Color", Color) = (1,1,1,1)
-		_MainTex ("Albedo (RGB)", 2D) = "white" {}
-		_Glossiness ("Smoothness", Range(0,1)) = 0.5
-		_Metallic ("Metallic", Range(0,1)) = 0.0
+		_WaveLength ("Wavelength", Float) = 1
+		_Amplitude ("Amplitude", Float) = 1
+		_Speed ("Speed", Float) = 1
+		_Steep("Steep", Float) = 1
+		_Direction("Direction", Vector) = (1,1,1,1)
 	}
 	SubShader {
-		Tags { "RenderType"="Opaque" }
-		LOD 200
-
+		Tags{ "RenderType" = "Opaque" }
+		LOD 100
+		
+		Pass{
+		//WAVE MAKER
 		CGPROGRAM
-		// Physically based Standard lighting model, and enable shadows on all light types
-		#pragma surface surf Standard fullforwardshadows
+			#pragma vertex vert
+			#pragma fragment frag
+			
+			#include "UnityCG.cginc"
+			struct appdata
+			{
+				float4 vertex : POSITION;
+				float2 uv : TEXCOORD0;
+			};
+			struct v2f
+			{
+				float2 uv : TEXCOORD0;
+				float4 vertex : SV_POSITION;
+			};
 
-		// Use shader model 3.0 target, to get nicer looking lighting
-		#pragma target 3.0
+			float4 _Color;
+			float _Amplitude;
+			float _WaveLength;
+			float _Steep;
+			float _Speed;
+			float4 _Direction;
+			
+			//GERSTNER WAVE FORMULA (BROKEN)
+			float3 waveMe(float3 pos) {
+				float w = 2 * 3.14159265359 / _WaveLength;
+				float o = _Speed * w;
+				
+				float x = pos.x + (_Steep*_Amplitude*dot(_Direction,pos.x)*cos(w*dot(_Direction, (pos.x, pos.y))+o*_Time));
+				float y = pos.y + (_Steep*_Amplitude*dot(_Direction, pos.y)*cos(w*dot(_Direction, (pos.x, pos.y)) + o * _Time));
+				float z = _Amplitude *sin(w*dot(_Direction, (pos.x,pos.y)) + o * _Time);
 
-		sampler2D _MainTex;
+				return float3(x, y, pos.z);
+			}
 
-		struct Input {
-			float2 uv_MainTex;
-		};
+			v2f vert(appdata v)
+			{
+				v2f o;
+				o.vertex = UnityObjectToClipPos(waveMe(mul(unity_ObjectToWorld, v.vertex).xyz));
+				return o;
+			}
 
-		half _Glossiness;
-		half _Metallic;
-		fixed4 _Color;
-
-		// Add instancing support for this shader. You need to check 'Enable Instancing' on materials that use the shader.
-		// See https://docs.unity3d.com/Manual/GPUInstancing.html for more information about instancing.
-		// #pragma instancing_options assumeuniformscaling
-		UNITY_INSTANCING_BUFFER_START(Props)
-			// put more per-instance properties here
-		UNITY_INSTANCING_BUFFER_END(Props)
-
-		void surf (Input IN, inout SurfaceOutputStandard o) {
-			// Albedo comes from a texture tinted by color
-			fixed4 c = tex2D (_MainTex, IN.uv_MainTex) * _Color;
-			o.Albedo = c.rgb;
-			// Metallic and smoothness come from slider variables
-			o.Metallic = _Metallic;
-			o.Smoothness = _Glossiness;
-			o.Alpha = c.a;
-		}
+			fixed4 frag(v2f i) : SV_Target
+			{
+				fixed4 col = _Color;
+				return col;
+			}
 		ENDCG
+		}
+		
 	}
 	FallBack "Diffuse"
 }
