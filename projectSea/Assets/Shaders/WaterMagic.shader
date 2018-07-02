@@ -1,5 +1,9 @@
-﻿// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
-
+﻿/*
+* Waves formulas from:
+* "Seascape" by Alexander Alekseev aka TDM - 2014
+* License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
+* From: https://www.shadertoy.com/view/Ms2SD1
+*/
 Shader "Custom/WaterMagic" {
 	Properties {
 		_Color ("Color", Color) = (1,1,1,1)
@@ -37,23 +41,54 @@ Shader "Custom/WaterMagic" {
 			float _Steep;
 			float _Speed;
 			float4 _Direction;
-			
-			//GERSTNER WAVE FORMULA (BROKEN)
-			float3 waveMe(float3 pos) {
-				float w = 2 * 3.14159265359 / _WaveLength;
-				float o = _Speed * w;
-				
-				float x = pos.x + (_Steep*_Amplitude*dot(_Direction,pos.x)*cos(w*dot(_Direction, (pos.x, pos.y))+o*_Time));
-				float y = pos.y + (_Steep*_Amplitude*dot(_Direction, pos.y)*cos(w*dot(_Direction, (pos.x, pos.y)) + o * _Time));
-				float z = _Amplitude *sin(w*dot(_Direction, (pos.x,pos.y)) + o * _Time);
 
-				return float3(x, y, pos.z);
+			float hash(float p)
+			{
+				float h = dot(p, float2(127.1, 311.7));
+				return frac(sin(h)*43758.5453123);
 			}
+
+			float noise(in float2 p) {
+				float2 i = floor(p);
+				float2 f = frac(p);
+				float2 u = f * f*(3.0 - 2.0*f);
+				return -1.0 + 2.0*lerp(lerp(hash(i + float2(0.0, 0.0)),
+					hash(i + float2(1.0, 0.0)), u.x),
+					lerp(hash(i + float2(0.0, 1.0)),
+					hash(i + float2(1.0, 1.0)), u.x), u.y);
+			}
+
+			//WAVE
+			float sea_octave(float2 pos, float choppy) {
+				pos += noise(pos);
+				float2 wv = 1.0 - abs(sin(pos));
+				float2 swv = abs(cos(pos));
+				wv = lerp(wv, swv, wv);
+				return pow(1.0 - pow(wv.x * wv.y , 0.65), choppy);
+			}
+
+			float3 waveMe(float4 p) {
+				float x = p.x;
+				float z = p.z;
+				float freq = _WaveLength;
+				float amp = _Amplitude;
+				float choppy = _Steep;
+				float2 uv = mul(unity_ObjectToWorld, p).xz; uv.x *= 0.75;
+
+				float d, h = 0.0;
+				d = sea_octave((uv + (1.0 + _Time * _Speed))*freq, choppy);
+				d += sea_octave((uv - (1.0 + _Time * _Speed))*freq, choppy);
+				h += d * amp;
+				uv *= _Direction; freq *= 1.9; amp *= 0.22;
+
+				return float3(x, p.y + h, z);
+			}
+
 
 			v2f vert(appdata v)
 			{
 				v2f o;
-				o.vertex = UnityObjectToClipPos(waveMe(mul(unity_ObjectToWorld, v.vertex).xyz));
+				o.vertex = UnityObjectToClipPos(waveMe( v.vertex));
 				return o;
 			}
 

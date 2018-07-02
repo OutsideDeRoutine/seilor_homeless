@@ -19,10 +19,10 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Floats:
-    - _Amplitude: 0.64
-    - _Speed: 2.49
-    - _Steep: 7.29
-    - _WaveLength: 1.08
+    - _Amplitude: 0.11
+    - _Speed: 1
+    - _Steep: 0.63
+    - _WaveLength: 1.64
     m_Colors:
-    - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _Direction: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 0.8235294, g: 0.8235294, b: 0.8235294, a: 1}
+    - _Direction: {r: 1.6, g: 1.2, b: -1.2, a: 1.6}
