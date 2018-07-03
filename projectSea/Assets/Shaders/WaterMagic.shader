@@ -1,4 +1,7 @@
-﻿/*
+﻿// Upgrade NOTE: replaced '_Object2World' with 'unity_ObjectToWorld'
+// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
+
+/*
 * Waves formulas from:
 * "Seascape" by Alexander Alekseev aka TDM - 2014
 * License Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported License.
@@ -6,7 +9,7 @@
 */
 Shader "Custom/WaterMagic" {
 	Properties {
-		_Color ("Color", Color) = (1,1,1,1)
+		_Color ("SeaColor", Color) = (1,1,1,1)
 		_WaveLength ("Wavelength", Float) = 1
 		_Amplitude ("Amplitude", Float) = 1
 		_Speed ("Speed", Float) = 1
@@ -22,8 +25,10 @@ Shader "Custom/WaterMagic" {
 		CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
-			
+
 			#include "UnityCG.cginc"
+			#include "UnityLightingCommon.cginc" // for _LightColor0
+
 			struct appdata
 			{
 				float4 vertex : POSITION;
@@ -31,17 +36,23 @@ Shader "Custom/WaterMagic" {
 			};
 			struct v2f
 			{
-				float2 uv : TEXCOORD0;
-				float4 vertex : SV_POSITION;
+				float3 worldPos : TEXCOORD0;
+				half3 tspace0 : TEXCOORD1;
+				half3 tspace1 : TEXCOORD2;
+				half3 tspace2 : TEXCOORD3;
+				float2 uv : TEXCOORD4;
+				float4 pos : SV_POSITION;
+				fixed4 diff : COLOR0; // diffuse lighting color
 			};
 
 			float4 _Color;
+			float4 _BaseColor;
 			float _Amplitude;
 			float _WaveLength;
 			float _Steep;
 			float _Speed;
 			float4 _Direction;
-
+			float3 _Position;
 			float hash(float p)
 			{
 				float h = dot(p, float2(127.1, 311.7));
@@ -84,18 +95,42 @@ Shader "Custom/WaterMagic" {
 				return float3(x, p.y + h, z);
 			}
 
+			//https://docs.unity3d.com/es/current/Manual/SL-VertexFragmentShaderExamples.html
 
-			v2f vert(appdata v)
+			v2f vert(float4 vertex : POSITION, float3 normal : NORMAL, float4 tangent : TANGENT, float2 uv : TEXCOORD0)
 			{
 				v2f o;
-				o.vertex = UnityObjectToClipPos(waveMe( v.vertex));
+				o.pos = UnityObjectToClipPos(waveMe(vertex));
+				o.worldPos = mul(unity_ObjectToWorld, vertex).xyz;
+				half3 wNormal = UnityObjectToWorldNormal(normal);
+				half3 wTangent = UnityObjectToWorldDir(tangent.xyz);
+				half tangentSign = tangent.w * unity_WorldTransformParams.w;
+				half3 wBitangent = cross(wNormal, wTangent) * tangentSign;
+				o.tspace0 = half3(wTangent.x, wBitangent.x, wNormal.x);
+				o.tspace1 = half3(wTangent.y, wBitangent.y, wNormal.y);
+				o.tspace2 = half3(wTangent.z, wBitangent.z, wNormal.z);
+				o.uv = uv;
+				half nl = max(0, dot(wNormal, _WorldSpaceLightPos0.xyz));
+				o.diff = nl * _LightColor0;
 				return o;
 			}
 
 			fixed4 frag(v2f i) : SV_Target
 			{
-				fixed4 col = _Color;
-				return col;
+
+				half3 worldNormal;
+				worldNormal.x = i.tspace0;
+				worldNormal.y = i.tspace1;
+				worldNormal.z = i.tspace2;
+				half3 worldViewDir = normalize(UnityWorldSpaceViewDir(i.worldPos));
+				half3 worldRefl = reflect(-worldViewDir, worldNormal);
+				half4 skyData = UNITY_SAMPLE_TEXCUBE(unity_SpecCube0, -worldRefl);
+				half3 skyColor = DecodeHDR(skyData, unity_SpecCube0_HDR);
+				fixed4 c = 0;
+				c.rgb = skyColor;
+				c.rgb *= _Color;
+				c.rgb *= i.diff;;
+				return c;
 			}
 		ENDCG
 		}
